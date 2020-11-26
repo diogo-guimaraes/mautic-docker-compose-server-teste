@@ -1,0 +1,96 @@
+version: "3.3"
+
+
+networks:
+   web:
+      external: true
+   internal:
+      external: false
+
+services:
+
+   traefik:
+      image: "traefik:v2.3"
+      container_name: "mautic-traefik"
+      restart: always
+      ports:
+         - 80:80
+         - 443:443
+      volumes:
+         - "/var/run/docker.sock:/var/run/docker.sock:ro"
+         - "./traefik/traefik.toml:/traefik.toml"
+         - "./traefik/traefik_dynamic.toml:/traefik_dynamic.toml"
+         - "./traefik/acme.json:/acme.json"
+      networks:
+         - internal
+         - web
+
+   mautic:
+      restart: unless-stopped
+      image: mautic/mautic:v3
+      container_name: mautic-server
+      depends_on:
+         - mysql
+      networks:
+         - internal
+         - web
+      labels:
+         - "traefik.enable=true"
+         - "traefik.http.routers.mautic.rule=Host(`financas.valeapna.com`)"
+         - "traefik.http.routers.mautic.tls.certresolver=lets-encrypt"
+         - "traefik.http.routers.mautic.tls=true"
+         - "traefik.port=80"
+      environment:
+         MAUTIC_DB_HOST: mysql
+         MAUTIC_DB_USER: mautic
+         MAUTIC_DB_PASSWORD: mauticdbpass
+         MAUTIC_RUN_CRON_JOBS: 1
+         PHP_MEMORY_LIMIT: 1G 
+         PHP_MAX_UPLOAD: 100M
+         PHP_MAX_EXECUTION_TIME: 3000
+      volumes:
+         - mautic_data:/var/www/html
+
+   mysql:
+      restart: unless-stopped
+      image: mariadb:latest
+      container_name: mautic-mariadb
+      environment:
+         MYSQL_ROOT_PASSWORD: mysqlrootpassword
+         MYSQL_DATABASE: mautic
+         MYSQL_USER: mautic
+         MYSQL_PASSWORD: mauticdbpass
+      command:
+         --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
+      networks:
+         - internal
+      labels:
+         - "traefik.enable=false"
+      volumes:
+         - mysql_data:/var/lib/mysql
+  
+   phpmyadmin:
+      depends_on:
+         - mysql
+      image: phpmyadmin/phpmyadmin:latest
+      container_name: phpmyadmin-mautic
+      restart: always
+      networks:
+         - internal
+         - web
+      labels:
+         - "traefik.enable=true"
+         - "traefik.http.routers.phpmyadmin.rule=Host(`phpadmfinancas.valeapna.com`)"
+         - "traefik.http.routers.phpmyadmin.tls.certresolver=lets-encrypt"
+         - "traefik.http.routers.phpmyadmin.tls=true"
+         - "traefik.port=8880"
+      environment:
+         PMA_HOST: mysql
+         PMA_ARBITRARY: 1
+         MYSQL_ROOT_PASSWORD: mysqlrootpassword
+
+volumes:
+   mautic_data:
+      driver: local
+   mysql_data:
+      driver: local

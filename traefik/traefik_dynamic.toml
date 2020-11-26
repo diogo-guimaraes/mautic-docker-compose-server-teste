@@ -1,0 +1,12 @@
+[http.middlewares.simpleAuth.basicAuth]
+  users = [
+    "admin:$apr1$IkCbDhUr$83AYdI7EC8aRTXSFg1ZmU."
+  ]
+
+[http.routers.api]
+  rule = "Host(`monitorfinancas.valeapna.com`)"
+  entrypoints = ["websecure"]
+  middlewares = ["simpleAuth"]
+  service = "api@internal"
+  [http.routers.api.tls]
+    certResolver = "lets-encrypt"
